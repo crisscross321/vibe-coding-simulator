@@ -23,6 +23,27 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
+/** 按事件 category 对应权重做加权随机选择 */
+function pickWeightedRandom(
+  candidates: GameEvent[],
+  categoryWeights: Partial<Record<EventCategory, number>>
+): GameEvent {
+  const weighted = candidates.map(event => ({
+    event,
+    weight: categoryWeights[event.category] ?? 1.0,
+  }))
+
+  const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0)
+  let roll = Math.random() * totalWeight
+
+  for (const { event, weight } of weighted) {
+    roll -= weight
+    if (roll <= 0) return event
+  }
+
+  return weighted[weighted.length - 1].event
+}
+
 // ============================================================
 // 事件选择
 // ============================================================
@@ -50,7 +71,8 @@ export function selectEvent(
   unlockedCausalEvents: string[],
   projectId: string,
   eventsCompleted: number,
-  eventHistory: EventResult[]
+  eventHistory: EventResult[],
+  categoryWeights?: Partial<Record<EventCategory, number>>
 ): GameEvent {
   const recentSet = new Set(recentEventIds.slice(-3))
   const completedEventIds = new Set(eventHistory.map(e => e.eventId))
@@ -117,7 +139,9 @@ export function selectEvent(
 
   // 普通候选池
   if (candidates.length > 0) {
-    return pickRandom(candidates)
+    return categoryWeights
+      ? pickWeightedRandom(candidates, categoryWeights)
+      : pickRandom(candidates)
   }
 
   // 兜底：放宽条件到只看进度范围
@@ -126,7 +150,9 @@ export function selectEvent(
   )
 
   if (fallbackCandidates.length > 0) {
-    return pickRandom(fallbackCandidates)
+    return categoryWeights
+      ? pickWeightedRandom(fallbackCandidates, categoryWeights)
+      : pickRandom(fallbackCandidates)
   }
 
   // 最终兜底：任何非 Boss 事件
@@ -365,9 +391,20 @@ export function checkEffectClears(state: GameState): EffectId[] {
     toClear.push('fragile_arch')
   }
 
-  // 预算警报：API 成本降到 30 以下（实际中成本只增不减，此条件较难触发）
-  if (activeIds.has('budget_alert') && state.apiCost <= 30) {
-    toClear.push('budget_alert')
+  // 预算警报：连续 2 次选择非高成本选项后解除
+  if (activeIds.has('budget_alert') && state.eventHistory.length >= 2) {
+    const lastTwo = state.eventHistory.slice(-2)
+    const allEventsPool = [...GAME_EVENTS, ...BOSS_EVENTS]
+    const bothLowCost = lastTwo.every(record => {
+      const eventDef = allEventsPool.find(e => e.id === record.eventId)
+      if (!eventDef) return false
+      const choiceDef = eventDef.choices.find(c => c.id === record.choiceId)
+      if (!choiceDef) return false
+      return !choiceDef.isHighCost
+    })
+    if (bothLowCost) {
+      toClear.push('budget_alert')
+    }
   }
 
   // 过度自信：经历一次灾难后清除

@@ -167,7 +167,82 @@
 
 ---
 
-## Bug 修复记录
+## 第七阶段：布局优化与交互修复 ✅
+
+**完成时间**：2026-05-18
+
+### 改进内容
+
+#### 7.1 四数值移入顶部状态栏
+- `src/components/panels/StatsBar.tsx` — **重写**：合并项目名 + 4 指标（💻质量 🐛Bug 💰费用 ❤️血量，带中文标签）+ 计时器 + 百分比到一行
+- 移除 PlayingScreen 中对 StatsCards 的引用（StatsCards 组件保留但不再使用）
+- 节省一整行垂直空间
+
+#### 7.2 里程碑进度条合并到顶部
+- 将 MilestoneBar 的分段进度条直接内嵌到 StatsBar 作为 Row 2，替换原来的纯百分比进度条
+- 移除 PlayingScreen 对独立 MilestoneBar 组件的引用
+- "危机" 阶段重命名为 "深度开发"（含蓄不剧透）
+
+#### 7.3 虚拟按键条点击修复
+- 根因：PlayingScreen 中 `useCallback(fn, [])` 捕获了 null ref（闭包陈旧）
+- 修复：改为普通函数 `() => inlinePromptRef.current?.handleUp()`，每次调用时实时读 ref
+
+#### 7.4 锁定原因去重
+- 锁定选项不再同时显示 `choice.description` 和 `lockReason`（避免 "需要技术信用" 写两遍）
+- 锁定时隐藏 description，只显示红色 lockReason 文字
+
+#### 7.5 内联 vs 弹窗路由规则明确
+- 新增 `isModalEvent()` 函数统一判断
+- 规则：Boss 事件（`isBoss=true`）无论 decisionType 都用弹窗；`emergency`/`meeting` 用弹窗
+- `permission`/`review`（非 Boss）使用终端内联 InlinePrompt
+
+### 验证结果
+- ✅ `tsc --noEmit --skipLibCheck` 零错误
+- ✅ `pnpm run build:h5` 编译成功（webpack 5.91.0, 4.6s）
+
+---
+
+## 第八阶段：机制修复与项目差异化接入 ✅
+
+**完成时间**：2026-05-19
+
+### 背景
+
+第五阶段多 Agent 大改造后，虽然系统架构完整、类型正确，但部分配置数据从未真正接入运行逻辑、多个效果系统规则与 UI 文案不一致，导致游戏体验存在脱节。
+
+### 设计文档
+- `docs/IMPROVEMENT_PLAN2.md` — 问题清单（5 项确认问题 + 2 项验证缺口）
+
+### 修复内容
+
+#### 8.1 项目差异化接入（高优）
+- `src/lib/game-engine.ts` — 新增 `pickWeightedRandom()` 加权随机选择函数；`selectEvent()` 增加 `categoryWeights` 可选参数，按项目配置的 `riskProfile.categoryWeights` 对事件池做加权选择（如 `social-pet` 的 `feature: 1.5` 让 feature 类事件概率 +50%）
+- `src/hooks/useGameTimer.ts` — 调用 `selectEvent` 时传入 `state.project?.riskProfile.categoryWeights`
+- `src/components/panels/StatsBar.tsx` — 新增 `milestoneNames?` prop；将硬编码 `MILESTONE_DISPLAY` 改为 `DEFAULT_MILESTONE_NAMES` 兜底 + 项目覆写合并
+- `src/components/screens/PlayingScreen.tsx` — 传递 `milestoneNames={state.project?.riskProfile.milestoneNames}`
+
+#### 8.2 tech_credit 使用后自动消耗（高优）
+- `src/hooks/useGameTimer.ts` — 在 outcome 处理流程中新增 step 4.5：当 `choice.requiresEffect === 'tech_credit'` 时自动 dispatch `CLEAR_EFFECT`
+
+#### 8.3 budget_alert 清除条件修正（中优）
+- `src/lib/game-engine.ts` — `checkEffectClears()` 中移除不可达的 `apiCost <= 30` 条件，改为：从 eventHistory 查找最近 2 次选择的事件定义，若均非 `isHighCost` 则解除效果（与 `clearHint` 文案"连续 2 次选择低成本选项后解除"一致）
+
+#### 8.4 紧急事件超时跳过锁定选项（中优）
+- `src/components/prompts/EmergencyAlert.tsx` — 超时自动选择逻辑从 `sortedChoices[0]` 改为先过滤 `isChoiceLocked`，取第一个未锁定选项（全锁定时 fallback 到第一个）
+
+#### 8.5 里程碑完成去重保护（低优）
+- `src/hooks/useGameState.ts` — `ADVANCE_MILESTONE` case 增加 `includes()` 去重守卫
+
+### 验证结果
+- ✅ `tsc --noEmit --skipLibCheck` 零错误
+
+---
+
+## Git 仓库
+
+- **GitHub**: https://github.com/crisscross321/vibe-coding-simulator
+- **首次提交**: 2026-05-18, 53 files, 20,136 lines
+- **分支**: main
 
 ### Fix 1: 页面白屏 — 缺少 index.html 模板
 - **修复**：添加 `src/index.html`，包含 `<div id="app">` 挂载点
@@ -227,13 +302,13 @@ vibe-coding-simulator/
 │   │   │   └── GameOverScreen.tsx     # 结算（含流派+因果链）
 │   │   ├── panels/
 │   │   │   ├── CodeAnimation.tsx      # 代码编辑器
-│   │   │   ├── StatsBar.tsx           # 顶部状态栏
-│   │   │   ├── StatsCards.tsx         # 指标卡片（含效果标记）
+│   │   │   ├── StatsBar.tsx           # 顶部状态栏（含4指标+里程碑进度条）
+│   │   │   ├── StatsCards.tsx         # 指标卡片（已废弃，保留文件）
 │   │   │   ├── ActivityLog.tsx        # 活动日志（纯 AI 活动文字）
-│   │   │   ├── MilestoneBar.tsx       # 里程碑进度条
+│   │   │   ├── MilestoneBar.tsx       # 里程碑进度条（已废弃，合入StatsBar）
 │   │   │   ├── ActiveEffects.tsx      # 持续效果图标条（含 clearHint）
-│   │   │   ├── KeypadBar.tsx          # 底部虚拟按键条（新增）
-│   │   │   └── OutcomeDanmaku.tsx     # 弹幕式结果反馈（新增）
+│   │   │   ├── KeypadBar.tsx          # 底部虚拟按键条
+│   │   │   └── OutcomeDanmaku.tsx     # 弹幕式结果反馈
 │   │   └── prompts/
 │   │       ├── InlinePrompt.tsx       # 终端内联选项（新增，替代旧弹窗）
 │   │       ├── EmergencyAlert.tsx     # 限时红色警报

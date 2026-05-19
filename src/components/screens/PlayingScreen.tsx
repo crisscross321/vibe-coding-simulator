@@ -102,6 +102,7 @@ export default function PlayingScreen() {
         systemHealth={state.systemHealth}
         currentMilestone={state.currentMilestone}
         milestonesCompleted={state.milestonesCompleted}
+        milestoneNames={state.project?.riskProfile.milestoneNames}
       />
 
       {/* Active effects bar */}

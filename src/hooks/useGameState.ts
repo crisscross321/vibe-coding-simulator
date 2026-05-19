@@ -255,6 +255,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'ADVANCE_MILESTONE': {
       const { milestone } = action
+      // Dedup: skip if already completed
+      if (state.milestonesCompleted.includes(milestone)) {
+        return { ...state, currentMilestone: milestone }
+      }
       return {
         ...state,
         currentMilestone: milestone,

@@ -32,8 +32,11 @@ export default function EmergencyAlert({ event, visible }: EmergencyAlertProps) 
         const next = prev - 1
         if (next <= 0 && !hasAutoSelected.current) {
           hasAutoSelected.current = true
-          // Auto-select first unlocked choice on timeout
-          const firstChoice = sortedChoices[0]
+          // Auto-select first UNLOCKED choice on timeout
+          const unlockedChoices = sortedChoices.filter(
+            c => !isChoiceLocked(c, activeEffects)
+          )
+          const firstChoice = unlockedChoices[0] ?? sortedChoices[0]
           if (firstChoice) {
             dispatch({ type: 'MAKE_CHOICE', choiceId: firstChoice.id, choice: firstChoice })
           }

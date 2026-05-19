@@ -85,6 +85,11 @@ export function useGameTimer() {
         dispatch({ type: 'CLEAR_EFFECT', effectId: outcome.clearEffect })
       }
 
+      // 4.5 消耗 tech_credit：选项 requiresEffect 为 tech_credit 时自动清除
+      if (choice.requiresEffect === 'tech_credit') {
+        dispatch({ type: 'CLEAR_EFFECT', effectId: 'tech_credit' })
+      }
+
       // 5. 检查因果链
       const newUnlocks = checkCausalLinks(
         event.id,
@@ -238,7 +243,8 @@ export function useGameTimer() {
         state.unlockedCausalEvents,
         state.project?.id ?? '',
         state.eventsCompleted,
-        state.eventHistory
+        state.eventHistory,
+        state.project?.riskProfile.categoryWeights
       )
       if (event) {
         dispatch({ type: 'SHOW_PROMPT', event })

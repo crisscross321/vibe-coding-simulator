@@ -13,6 +13,7 @@ interface StatsBarProps {
   systemHealth: number
   currentMilestone: MilestoneId
   milestonesCompleted: MilestoneId[]
+  milestoneNames?: Partial<Record<MilestoneId, string>>
 }
 
 function formatTime(seconds: number): string {
@@ -39,8 +40,8 @@ function getHealthColor(health: number): string {
   return 'text-red-400'
 }
 
-/** 玩家可见的阶段名称 */
-const MILESTONE_DISPLAY: Record<MilestoneId, string> = {
+/** 默认阶段名称（兜底） */
+const DEFAULT_MILESTONE_NAMES: Record<MilestoneId, string> = {
   init: '启动',
   core: '开发',
   crisis: '深度开发',
@@ -61,9 +62,16 @@ export default function StatsBar({
   systemHealth,
   currentMilestone,
   milestonesCompleted,
+  milestoneNames,
 }: StatsBarProps) {
   const thresholds = GAME_CONSTANTS.MILESTONE_THRESHOLDS
   const pct = Math.min(Math.floor(progress), 100)
+
+  // Merge: project-specific names override defaults
+  const displayNames: Record<MilestoneId, string> = {
+    ...DEFAULT_MILESTONE_NAMES,
+    ...milestoneNames,
+  }
 
   return (
     <View className="bg-slate-900 bg-opacity-95 border-b border-slate-700 px-3 py-2">
@@ -156,7 +164,7 @@ export default function StatsBar({
                 className={`mt-0.5 ${isCurrent ? 'text-indigo-400 font-semibold' : (isCompleted ? 'text-green-400' : 'text-slate-500')}`}
                 style={{ fontSize: '9px' }}
               >
-                {isCompleted ? '✓' : ''}{MILESTONE_DISPLAY[milestoneId]}
+                {isCompleted ? '✓' : ''}{displayNames[milestoneId]}
               </Text>
             </View>
           )
